@@ -36,26 +36,6 @@ export const Footer: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Links */}
-          <div>
-            <h4 className="font-orbitron font-black text-[10px] text-accent-primary uppercase tracking-[0.3em] mb-8 italic">Platform_Nodes</h4>
-            <ul className="space-y-4">
-              {[
-                { label: 'Home', path: '/' },
-                { label: 'About', path: '/about' },
-                { label: 'Experience', path: '/#experience' },
-                { label: 'Projects', path: '/#projects' },
-                { label: 'Credentials', path: '/#credentials' }
-              ].map((item) => (
-                <li key={item.label}>
-                  <Link to={item.path} className="text-sm font-mono font-black text-text-muted hover:text-text-primary transition-colors flex items-center gap-2 group">
-                    <div className="w-1 h-1 rounded-full bg-accent-primary opacity-0 group-hover:opacity-100 transition-all" />
-                    {item.label.toUpperCase()}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
 
           {/* Research Hub */}
           <div>
