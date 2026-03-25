@@ -16,7 +16,7 @@ const staticRoutes = [
   { path: '/terms', priority: '0.5', changefreq: 'yearly' },
   { path: '/about', priority: '0.6', changefreq: 'yearly' },
   { path: '/contact', priority: '0.6', changefreq: 'yearly' },
-  { path: '/disclaimer', priority: '0.5', changefreq: 'yearly' },
+  { path: '/disclaimer', priority: '0.6', changefreq: 'yearly' },
 ];
 
 try {
