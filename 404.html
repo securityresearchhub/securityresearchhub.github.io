@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Redirecting…</title>
+    <meta name="robots" content="noindex" />
+    <script>
+        (function () {
+            try {
+                var currentPath = window.location.pathname + window.location.search + window.location.hash;
+                // If root, just go home
+                if (currentPath === '/' || currentPath === '/index.html') return;
+
+                // Fetch the SPA index and replace the document so the app can handle the route
+                fetch('/index.html').then(function (res) {
+                    return res.text();
+                }).then(function (html) {
+                    document.open();
+                    document.write(html);
+                    document.close();
+                    // Replace the history entry so the URL stays the same
+                    history.replaceState({}, '', currentPath);
+                }).catch(function () {
+                    // Fallback to root if fetching fails
+                    window.location.replace('/');
+                });
+            } catch (e) {
+                window.location.replace('/');
+            }
+        })();
+    </script>
+</head>
+
+<body></body>
+
+</html>

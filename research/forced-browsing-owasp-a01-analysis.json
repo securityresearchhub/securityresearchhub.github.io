@@ -1,0 +1,266 @@
+{
+  "executive_summary": "Forced Browsing is a classic case of 'Hidden but not Protected'. It relies on the assumption that if a user doesn't see a link, they won't find the page. In this research, I'll show you how attackers use 'Blind Discovery' to find internal administrative portals, server configuration files, and backup logs that were never meant for public eyes. We'll explore why security by obscurity is a failing strategy in the age of automated scanners.",
+  "introduction": "Forced Browsing is a security vulnerability where an attacker attempts to access restricted files, directories, or pages by manually typing their URLs into the browser. It occurs when a web server or application relies on the 'secrecy' of a URL rather than enforcing proper authorization. Because many developmental files (like `.git`, `config.php.bak`, or `/admin_v2`) are often left on the production server without being linked in the UI, they become easy targets for discovery. This vulnerability typically exists at the web server or application routing layer and highlights the failure of 'Security by Obscurity'.",
+  "simple_explanation": "What is Forced Browsing? Imagine you're at a library. The librarian gives you a map that shows where the fiction and history books are. But instead of following the map, you start walking around and rattling every door handle you see. You find a door labeled 'Staff Only' that isn't locked, and inside, you find all the library's financial records. Forced Browsing is exactly that—you're looking for 'doors' (URLs) that aren't on the map, hoping the developer left one unlocked by mistake.",
+  "technical_deep_dive": "How the attack works: During a security audit, I discovered that an application had migrated its admin panel but left the old one active at `/app/internal/admin_v2/`. While the new panel had strong security, the old one relied on a misconfigured `.htaccess` file. By 'forcing' a request to the unlinked path, I bypassed the new security gateway entirely. Attackers use automated tools to 'guess' thousands of these common paths, looking for forgotten backups, configuration files, or legacy portals that should have been deleted or protected.",
+  "where_to_test": {
+    "explanation": "Forced Browsing is most likely to occur in legacy systems, environments undergoing migration, or servers where 'orphaned' files (like backups or git folders) are left in the web root. It relies on the tester finding what the developer forgot to delete.",
+    "mapping_table": [
+      {
+        "type": "Public Websites",
+        "surface": "Configuration files like `.env`, database backups like `backup.sql`, and `/.git` directories."
+      },
+      {
+        "type": "Migration Portals",
+        "surface": "Legacy admin routes like `/v1/admin`, `/test-portal`, and `/old-site-backup`."
+      },
+      {
+        "type": "Cloud Infrastructure",
+        "surface": "Publicly accessible S3 buckets or directory listings on misconfigured Nginx servers."
+      },
+      {
+        "type": "Development Servers",
+        "surface": "Internal debugging pages like `/phpinfo()`, `/server-status`, or accessible `/dev/` folders."
+      }
+    ],
+    "practical_example": {
+      "explanation": "A penetration tester sees that the main CSS file is located at `/assets/css/style.css`. They decide to test if other common backup folders exist in the same directory structure.",
+      "request": "Standard URL: /config/database.php\nTest URL: /config/database.php.bak",
+      "observation": "If the browser starts downloading the `.bak` file, the server is serving raw source code and sensitive credentials. The developer 'hid' the file by not linking it, but didn't 'protect' it from direct requests."
+    },
+    "mindset_diagram": [
+      "Website Feature",
+      "Identify Endpoint",
+      "Identify Parameters",
+      "Test Authorization",
+      "Possible Vulnerability"
+    ]
+  },
+  "attack_workflow": "Forced Browsing exploitation follows a methodical 6-step penetration testing process: 1. **Application Understanding**: The tester maps the public surface of the application through standard navigation. 2. **Endpoint Discovery**: Identifying unlinked assets like `/admin`, `/backup`, or `/.env` using directory brute-forcing. 3. **Request Interception**: Capturing requests to observed directories to analyze server behavior and response codes. 4. **Parameter Manipulation**: Appending extension guesses (e.g., `config.php.bak`) or altering directory paths to force access. 5. **Authorization Bypass**: The server fails to enforce functional access controls on the direct request to the unlinked file. 6. **Unauthorized Data Exposure**: Confirming the vulnerability by retrieving sensitive configuration or administrative data.",
+  "application_architecture": "Forced Browsing occurs at the Web Server and Application Server layers. In a layered model (Client → API Gateway → Application Server → Database), the failure point is the 'Trust by Location' assumption. The server assumes that because a resource has no link in the Client layer, it does not require a robust Authorization check in the Application Server layer before accessing the File System or Database.",
+  "root_cause_analysis": "The developer mistake results in a predictable cause chain: **User Controlled Identifier** (Direct URL) → **Missing Authorization Validation** → **Direct Database/File Query Execution** → **Unauthorized Data Exposure**. This occurs because developers often leave 'orphaned content' (legacy files, backups) on the production server without active security guards.",
+  "code_examples": {
+    "explanation": "Compare 'Implicit Hiding' with 'Explicit Protection'. One trusts the user's ignorance; the other trusts the server's rules.",
+    "insecureCode": "// ❌ Insecure: Route exists but has no auth check\n// The dev thinks nobody will guess this long URL\napp.get('/admin-panel-secret-9912', (req, res) => {\n  res.render('admin_dashboard');\n});",
+    "secureCode": "// ✓ Secure: Every route, no matter how 'hidden', requires auth\napp.get('/dashboard', isAdmin, (req, res) => {\n  res.render('admin_dashboard');\n});\n\n// And a global 404 for anything not explicitly allowed\napp.use((req, res) => res.status(404).send('Not Found'));"
+  },
+  "lab_scenario": {
+    "id": "forced-browsing-config",
+    "vulnerabilityType": "Forced Browsing",
+    "difficulty": "Beginner",
+    "endpoint": "/.env",
+    "method": "GET",
+    "initialRequest": "GET /index.html HTTP/1.1\nHost: vulnerable-site.local\nAccept: text/html",
+    "targetId": "config",
+    "hints": [
+      "Common sensitive files like '.env' or 'config.php' are sometimes left in the web root.",
+      "Try requesting a file that shouldn't be public, like /.env or /backup.sql",
+      "Does the server allow you to download configuration files directly?"
+    ],
+    "solution": {
+      "payload": "GET /.env HTTP/1.1\nHost: vulnerable-site.local\nAccept: text/plain",
+      "explanation": "The attacker guesses the location of a sensitive environment file (/.env) and the server serves it directly because there is no restriction on accessing dot-files."
+    },
+    "autoAttackSteps": [
+      {
+        "label": "Directory Fuzzing",
+        "description": "The attacker uses a wordlist to guess common hidden file names."
+      },
+      {
+        "label": "Execute Direct Request",
+        "description": "The attacker manually requests the discovered sensitive path.",
+        "payload": "GET /.env HTTP/1.1\nHost: vulnerable-site.local\nAccept: text/plain"
+      },
+      {
+        "label": "Retrieve Secrets",
+        "description": "The server returns the raw contents of the .env file, exposing database credentials and API keys."
+      }
+    ],
+    "skillsLearned": [
+      "Directory Brute Forcing",
+      "Sensitive File Identification",
+      "Web Server Misconfiguration Analysis"
+    ],
+    "vulnerableBody": "DB_HOST=localhost\nDB_USER=root\nDB_PASS=S3cr3t_P@ss_2024\nAWS_SECRET_KEY=AKIA_MOCK_DATA_4421\nSTRIPE_API_KEY=sk_test_51Mz..." ,
+    "secureBody": {
+      "error": "Not Found",
+      "message": "The requested resource could not be found on this server.",
+      "code": "404"
+    }
+  },
+  "osi_layer": "Layer 7 — Application Layer. Forced Browsing is an application-level flaw where the routing logic fails to protect sensitive resources from direct HTTP requests.",
+  "protocol_mapping": "This vulnerability impacts HTTP/HTTPS, REST APIs, and GraphQL. Attackers manipulate these protocols by crafting direct GET or POST requests to discovered unlinked endpoints.",
+  "impact_analysis": {
+    "confidentiality": "HIGH",
+    "integrity": "MEDIUM",
+    "availability": "MEDIUM",
+    "description": "The primary impact of Forced Browsing is on Confidentiality, as it often reveals backup database files (`dump.sql`), environment variables (`.env`), or internal source code (`/.git`). If an administrative portal is found, the impact can escalate to Integrity and Availability as the attacker gains the ability to modify system state."
+  },
+  "cvss_analysis": {
+    "score": "5.3",
+    "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+    "metrics": {
+      "Attack Vector": "Network-based",
+      "Attack Complexity": "Low",
+      "Privileges Required": "None",
+      "User Interaction": "None"
+    }
+  },
+  "cvss_educational": {
+    "represents": "CVSS is the 'Pulse Check' for a vulnerability's health.",
+    "exists": "To give us a common way to rank the 'scary-ness' of a bug so we don't waste time on things that don't matter.",
+    "year": "2005",
+    "relation": "This Forced Browsing gets a 5.3 because while it's trivial to do, it usually only leaks 'some' data unless you get lucky and find a whole admin panel."
+  },
+  "cwe_mapping": "CWE-425: Direct Request (Forced Browsing)",
+  "cwe_educational": {
+    "represents": "CWE is the 'Encyclopedia of Logic Flaws'.",
+    "exists": "To help us talk about *why* something broke, not just that it *is* broken.",
+    "year": "2006",
+    "relation": "CWE-425 specifically describes the error of exposing a resource without an authorization check, because you assumed the 'URL' was hard to guess."
+  },
+  "cve_references": [
+    "CVE-2022-23131 (Real-world Forced Browsing in Zabbix)",
+    "CVE-2018-7600 (Drupalgeddon 2 - partially leveraged Forced Browsing)"
+  ],
+  "cve_educational": {
+    "represents": "CVE is the unique ID for a specific bug in a real-world product.",
+    "exists": "To help the security world stay synchronized so we aren't all fixing different things at once.",
+    "year": "1999",
+    "relation": "When a major software like WordPress has a hidden endpoint that shouldn't be public, it gets a CVE for Forced Browsing."
+  },
+  "mitre_mapping": "T1595: Active Scanning (Pre-Exploitation Tactic)",
+  "mitre_educational": {
+    "represents": "MITRE ATT&CK is the 'Anatomy of a Professional Hacker'.",
+    "exists": "To help us understand theater of operations so we can build better defenses.",
+    "year": "2013",
+    "relation": "T1595 is the technique where attackers use 'Active Scanning' to force their way through your file structure, looking for anything slightly out of place."
+  },
+  "ptes_mapping": [
+    {
+      "phase": "Pre-Engagement Interaction",
+      "simple": "Setting rules on which parts of the server we are allowed to search for hidden files.",
+      "technical": "Defining scoping constraints for automated directory brute-forcing and sensitive file enumeration."
+    },
+    {
+      "phase": "Intelligence Gathering",
+      "simple": "Using a list of common secret names to see if the server has any hidden pages.",
+      "technical": "Running high-speed directory scanners (ffuf, gobuster) against the web root to identify unlinked assets (e.g., /backup, /.env)."
+    },
+    {
+      "phase": "Threat Modeling",
+      "simple": "Assuming that 'Security by Obscurity' is failing and someone left a door unlocked.",
+      "technical": "Mapping the risk of exposed configuration files or legacy administrative interfaces to potential data exfiltration paths."
+    },
+    {
+      "phase": "Vulnerability Analysis",
+      "simple": "During vulnerability analysis the tester evaluates whether authorization controls are enforced correctly.",
+      "technical": "Manually verifying if discovered unlinked endpoints enforce server-side authentication or authorization checks."
+    },
+    {
+      "phase": "Exploitation",
+      "simple": "Directly typing the secret URL into the browser to see if the data appears.",
+      "technical": "Bypassing UI-level navigation restrictions to directly access privileged endpoints or file system resources via direct request."
+    },
+    {
+      "phase": "Post-Exploitation",
+      "simple": "Using the secrets we found (like passwords) to take over more of the system.",
+      "technical": "Utilizing discovered credentials, API keys, or database backups to escalate privileges or move laterally within the infrastructure."
+    },
+    {
+      "phase": "Reporting",
+      "simple": "Explaining that 'hiding' isn't the same as 'locking' and showing how to fix it.",
+      "technical": "Documenting the failure of direct request protection and providing guidance on implementing robust 403 Forbidden controls."
+    }
+  ],
+  "osstmm_analysis": [
+    {
+      "principle": "Operational Security Testing",
+      "simple": "Checking if the server correctly blocks access to hidden files when a user tries to find them.",
+      "technical": "Verifying that operational controls effectively restrict access to all resources regardless of the presence of UI links."
+    },
+    {
+      "principle": "Trust Boundary Analysis",
+      "simple": "Making sure the wall around the server's secrets is solid everywhere.",
+      "technical": "Evaluating the integrity of the trust boundary between the public internet and internal-only application resources."
+    },
+    {
+      "principle": "Security Control Verification",
+      "simple": "Testing every single security rule to make sure it doesn't have any loopholes.",
+      "technical": "Validating that security controls are consistently applied across all reachable URI paths on the target system."
+    },
+    {
+      "principle": "Authentication Control",
+      "simple": "Ensuring the system asks 'Who are you?' before showing any private page.",
+      "technical": "Checking for gaps in the global authentication requirement that might allow 'unauthenticated' access to discovered assets."
+    },
+    {
+      "principle": "Authorization Control",
+      "simple": "Making sure the system checks 'Are you allowed?' for every direct request.",
+      "technical": "Verifying that authorization logic is enforced at the individual endpoint layer rather than relying on navigation-based security."
+    }
+  ],
+  "detection_methodologies": [
+    "**Manual Proxy Testing**: Capture standard user requests and manually modify the URL or method to attempt administrative actions.",
+    "**Endpoint Discovery**: Use tools like `ffuf` or `KiteRunner` to find hidden administrative API endpoints not linked in the UI.",
+    "**Parameter Manipulation Testing**: Swap user IDs or modify tokens to see if the system allows cross-user access (similar to IDOR detection).",
+    "**Authorization Validation Checks**: Systematic testing of all discovered unlinked endpoints with both privileged and unprivileged session tokens."
+  ],
+  "manual_checklist": [
+    "**Capture Request**: Capture a standard request using a proxy tool to understand the application's URL structure.",
+    "**Identify Parameters**: Identify user controlled parameters within the URL or headers.",
+    "**Modify Identifiers**: Modify directory names or object identifiers to guess unlinked paths.",
+    "**Observe Responses**: Observe server responses for successful (200 OK) access to restricted or hidden resources.",
+    "**Verify Validation**: Verify whether the server enforces an authorization check for the directly requested resource."
+  ],
+  "automated_tools": [
+    {
+      "name": "ffuf (Fuzz Faster U Fool)",
+      "description": "The industry standard for directory bursting. It's incredibly fast and flexible for finding 'hidden' paths."
+    },
+    {
+      "name": "Dirsearch",
+      "description": "A simpler tool that comes pre-configured with thousands of 'dangerous' paths to check."
+    }
+  ],
+  "prevention_strategy": [
+    "**Mandatory Auth**: Every file on your server must belong to a 'protected' zone unless it's in the `/public` folder.",
+    "**Clean the House**: Never leave backup files, test scripts, or `.git` directories on a production web server.",
+    "**Disable Directory Listing**: Ensure your web server (Nginx/Apache) is configured to never show the contents of a folder.",
+    "**Global 404**: Configure your application to return a generic 404 for any path that isn't explicitly defined in your routing table."
+  ],
+  "developer_mistakes": [
+    "**Security by Obscurity**: Thinking that a long, weird URL is just as good as a password.",
+    "**Production-Backup Blunders**: Copying `config.php` to `config.php.bak` right in the web root—the world can now read your DB password.",
+    "**Leaking Internal Paths**: Including links to internal 'dev' or 'staging' portals in the production JavaScript code."
+  ],
+  "bug_bounty_example": {
+    "title": "Finding a Company's Entire Git History in Plain Sight",
+    "summary": "I discovered that a major tech blog had left their `/.git` directory public. I was able to download their entire source code, including their AWS keys and database passwords.",
+    "steps": [
+      "I went to `blog.site.com/.git/HEAD`.",
+      "The server returned 'ref: refs/heads/master', confirming the directory was exposed.",
+      "I used a tool called `git-dumper` to reconstruct their entire codebase on my machine.",
+      "I found a file called `settings.py` that contained their production API keys."
+    ],
+    "recommendation": "Block all access to dot-files and directories (like `.git/`) in your Nginx config."
+  },
+  "comparison_table": [
+    {
+      "feature": "Discovery Method",
+      "target": "Linked Browsing",
+      "difference": "Following the buttons and links the developer provided."
+    },
+    {
+      "feature": "Discovery Method",
+      "target": "Forced Browsing",
+      "difference": "Manually typing URLs to find what the developer *tried* to hide."
+    }
+  ],
+  "key_takeaways": [
+    "If it's on the server, it's public—unless you lock it.",
+    "Scanning tools are faster than your best 'obscurity' trick.",
+    "The most dangerous files are often the ones you forgot were there."
+  ],
+  "strategic_conclusion": "Forced Browsing is the ultimate reminder that application security is only as strong as its 'unlisted' endpoints. To defend against it, we have to adopt a philosophy of 'Explicit Exposure'—nothing exists to the world unless we have intentionally and securely opened the door. By sanitizing our production environments and enforcing global authorization, we can make 'blind discovery' a thing of the past."
+}

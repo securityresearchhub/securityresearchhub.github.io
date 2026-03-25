@@ -1,0 +1,260 @@
+{
+  "executive_summary": "Missing Function-Level Access Control (MFLAC) is a 'Silent Execution' vulnerability. It occurs when a server assumes that if you know how to call a function, you must be allowed to. In this research dossier, I'll document how an attacker can leverage hidden administrative functions to overwrite system logs and grant themselves root-level authority. We'll explore why 'knowing the API' should never be equated with 'having the permission'.",
+  "introduction": "Missing Function-Level Access Control (MFLAC) is a security vulnerability where an application fails to properly restrict access to specific functions or API endpoints based on a user's role. It occurs when a server assumes that if a user knows a secret URL or how to call a specific function, they must have the permission to do so. While the system may verify 'who' the user is (Authentication), it fails to check 'what' the user is allowed to do (Authorization) before executing the function. This vulnerability typically exists at the application's routing or controller layer and often leads to unauthorized administrative control.",
+  "simple_explanation": "What is Missing Function-Level Access Control? Imagine you're at a restaurant. You have a menu where you can order food. But while you're sitting there, you notice a small computer screen on the wall that the waiters use to send orders to the kitchen. You realize that if you just walk up and tap the screen, you can order yourself a free steak or even cancel everyone else's orders. The kitchen sees the request 'on the screen' and assumes it must be from a waiter. MFLAC is exactly that—using an 'Admin' screen (or API endpoint) that the developer thought you'd never find to control the entire system.",
+  "technical_deep_dive": "How the attack works: In a complex application, developers often create 'internal' API endpoints for support or debugging, such as `/api/internal/debug/reset-environment`. They may assume that since these endpoints aren't linked in the main UI, they are safe. However, an attacker can discover these routes by analyzing the application's JavaScript files or using directory-scanning tools. Because the backend code for these functions often lacks a role-check middleware, any logged-in user (or sometimes even unauthenticated users) can trigger these powerful functions directly.",
+  "where_to_test": {
+    "explanation": "Missing Function-Level Access Control (MFLAC) is typically found in applications that have segregated 'Admin' and 'User' frontends but use a unified backend API. It occurs because the backend logic trusts that if a user knows the secret API path, they must be an admin.",
+    "mapping_table": [
+      {
+        "type": "Cloud Management Dashboards",
+        "surface": "Internal debug APIs like `/api/v1/system/status`, environment reset functions, and mass-user update scripts."
+      },
+      {
+        "type": "Single Page Applications (SPAs)",
+        "surface": "API routes discovered in minified JavaScript files that aren't linked anywhere in the visible navigation."
+      },
+      {
+        "type": "IoT Control Panels",
+        "surface": "Over-the-air (OTA) update endpoints, device factory reset commands, and root-level configuration APIs."
+      },
+      {
+        "type": "DevOps Tooling",
+        "surface": "CI/CD pipeline trigger URLs, secret management APIs, and infrastructure provisioning functions."
+      }
+    ],
+    "practical_example": {
+      "explanation": "A penetration tester analyzes the site's main `app.js` file and finds a commented-out string: `const ADMIN_API = '/api/internal/v3/config-wipe'`. They decide to test this endpoint while logged in as a normal user.",
+      "request": "POST /api/internal/v3/config-wipe\nBody: {}\n(Sent using a standard user's session cookie)",
+      "observation": "If the response is '200 OK' and the configuration is deleted, the system has an MFLAC vulnerability. The server successfully authenticated the user but failed to authorize the specific function call."
+    },
+    "mindset_diagram": [
+      "Website Feature",
+      "Identify Endpoint",
+      "Identify Parameters",
+      "Test Authorization",
+      "Possible Vulnerability"
+    ]
+  },
+  "attack_workflow": "The penetration testing workflow for MFLAC follows a systematic logical progression: 1. **Application Understanding**: The tester interacts with the app as a normal user to map out standard features. 2. **Endpoint Discovery**: Hidden API routes or admin directories are discovered via directory brute-forcing. 3. **Request Interception**: Sensitive requests are captured using Burp Suite to inspect parameters like `isAdmin` or `/api/admin`. 4. **Parameter Manipulation**: The tester attempts to access restricted endpoints by modifying URL paths or headers while using a low-privilege session. 5. **Authorization Bypass**: The server executes the request because it fails to verify functional permissions. 6. **Unauthorized Data Exposure**: Administrative data or control is returned, confirming the vulnerability.",
+  "application_architecture": "This vulnerability occurs within the API Gateway and Application Server layers. In a standard multi-tier system (Client → API Gateway → Application Server → Database), the failure point is at the Application Server's routing logic. While the Gateway might verify identity (Authentication), the Application Server fails to enforce fine-grained role checks (Authorization) for specific backend functions before querying the Database.",
+  "root_cause_analysis": "The developer mistake follows a specific failure sequence: **User Controlled Identifier** → **Missing Authorization Validation** → **Direct Database Query Execution** → **Unauthorized Data Exposure**. This occurs because developers often treat administrative security as 'Security by Obscurity', assuming that if an endpoint is not linked in the UI, an attacker will never find or execute it.",
+  "code_examples": {
+    "explanation": "Compare the 'Trust-by-Location' model with the 'Verify-by-Function' model. One is the easy way; the other is the secure way.",
+    "insecureCode": "// ❌ Insecure: No check inside the function itself\n// The dev thinks nobody will find this '/debug' route\napp.post('/api/v1/system/debug/wipe-logs', (req, res) => {\n  Logs.deleteAll();\n  res.send('Logs cleared safely.');\n});",
+    "secureCode": "// ✓ Secure: Enforces strict administrative context at the functional entry point\napp.post('/api/v1/system/debug/wipe-logs', mustBeGlobalAdmin, (req, res) => {\n  // Now, only a user with the 'GLOBAL_ADMIN' role can reach this logic\n  Logs.deleteAll();\n  res.send('Logs cleared by administrator.');\n});"
+  },
+  "lab_scenario": {
+    "id": "mflac-debug-reset",
+    "vulnerabilityType": "Missing Function-Level Access Control",
+    "difficulty": "Advanced",
+    "endpoint": "/api/internal/debug/reset-environment",
+    "method": "POST",
+    "initialRequest": "POST /api/internal/debug/reset-environment HTTP/1.1\nHost: cloud-provider.local\nAuthorization: Bearer standard_user_token_001\nContent-Type: application/json\n\n{\n  \"confirm\": true\n}",
+    "targetId": "internal-debug",
+    "hints": [
+      "The JS source code mentions an 'internal' API prefix.",
+      "Try to find an endpoint that sounds like it performs a sensitive action, like 'reset' or 'wipe'.",
+      "Does the /api/internal/debug prefix require admin privileges?"
+    ],
+    "solution": {
+      "payload": "POST /api/internal/debug/reset-environment HTTP/1.1\nHost: cloud-provider.local\nAuthorization: Bearer standard_user_token_001\nContent-Type: application/json\n\n{\n  \"confirm\": true\n}",
+      "explanation": "The attacker discovers and executes an unauthenticated administrative function that was intended for internal use only. The server fails to enforce role-based access control on the functional endpoint."
+    },
+    "autoAttackSteps": [
+      {
+        "label": "Code Analysis",
+        "description": "The researcher scans minified JS files for strings like 'admin', 'internal', or 'reset'."
+      },
+      {
+        "label": "Endpoint Testing",
+        "description": "The researcher discovers the '/api/internal/debug/reset-environment' endpoint.",
+        "payload": "POST /api/internal/debug/reset-environment HTTP/1.1\nHost: cloud-provider.local\nAuthorization: Bearer standard_user_token_001\nContent-Type: application/json\n\n{\n  \"confirm\": true\n}"
+      },
+      {
+        "label": "Trigger Function",
+        "description": "The request is executed. The server responds with 200 OK and wipes the environment, confirming the bypass."
+      }
+    ],
+    "skillsLearned": [
+      "Static Analysis of Client-Side Code",
+      "Administrative Function Discovery",
+      "Functional Access Control Exploitation"
+    ],
+    "vulnerableBody": {
+      "status": "Success",
+      "message": "Production environment reset command accepted. All data partitions are being wiped.",
+      "job_id": "RE-88219"
+    },
+    "secureBody": {
+      "error": "Unauthorized",
+      "message": "Invalid functional context. This endpoint is restricted to internal administrative sessions.",
+      "code": "401"
+    }
+  },
+  "osi_layer": "Layer 7 — Application Layer. Web application vulnerabilities like MFLAC occur at the top of the OSI stack where HTTP requests are parsed and business logic decisions are made.",
+  "protocol_mapping": "MFLAC primarily impacts HTTP/HTTPS protocols, RESTful APIs, and GraphQL endpoints. Attackers manipulate these protocols by crafting custom HTTP requests to access privileged functional entry points.",
+  "impact_analysis": {
+    "confidentiality": "MEDIUM",
+    "integrity": "CRITICAL",
+    "availability": "HIGH",
+    "description": "The impact of MFLAC is typically on system Integrity. If an attacker can call a 'deleteUser' function, they can wipe out your customer base. If they find an 'updatePricing' function, they can bankrupt the company. It allows for the surgical destruction of an application's data and logic from the inside out."
+  },
+  "cvss_analysis": {
+    "score": "9.1",
+    "vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+    "metrics": {
+      "Attack Vector": "Network-based",
+      "Attack Complexity": "Low",
+      "Privileges Required": "Low (any user account)",
+      "User Interaction": "None"
+    }
+  },
+  "cvss_educational": {
+    "represents": "CVSS is the 'Impact Statement' for a digital catastrophe.",
+    "exists": "To help developers stop arguing about 'how bad' a bug is and start fixing it based on its mathematical danger.",
+    "year": "2005",
+    "relation": "This MFLAC gets a 9.1 because it's a 'Total Takeover' vector that is trivially easy for any logged-in user to exploit."
+  },
+  "cwe_mapping": "CWE-285: Improper Authorization (Functional subtype)",
+  "cwe_educational": {
+    "represents": "CWE is the 'Gray's Anatomy' of software failures.",
+    "exists": "To help the industry categorize and understand the root causes of our security mistakes across all types of code.",
+    "year": "2006",
+    "relation": "CWE-285 specifically addresses the 'forgotten guard'—where the code simply assumes that whoever is calling the function has the right to do so."
+  },
+  "cve_references": [
+    "CVE-2022-29072 (Real-world MFLAC in 7-Zip)",
+    "CVE-2020-0618 (MFLAC in Microsoft SQL Server Reporting Services)"
+  ],
+  "cve_educational": {
+    "represents": "CVE is the unique identifier for a specific security flaw in a real product.",
+    "exists": "To make sure that when a patch is released, everyone in the world is talking about the the same logic failure.",
+    "year": "1999",
+    "relation": "Major enterprise software products that have 'hidden' API endpoints for management often suffer from MFLAC and receive high-criticality CVEs."
+  },
+  "mitre_mapping": "T1068: Exploitation for Privilege Escalation (Functional Tactic)",
+  "mitre_educational": {
+    "represents": "MITRE ATT&CK is the 'Playbook' used by both hackers and professional defenders.",
+    "exists": "To help us visualize the steps an attacker takes, from the first scan to the final system takeover.",
+    "year": "2013",
+    "relation": "T1068 is the primary technique where attackers use 'Internal Functions' to jump from a harmless user account to full administrative control."
+  },
+  "detection_methodologies": [
+    "**Manual Proxy Testing**: Capture standard user requests and manually modify the URL or method to attempt administrative actions.",
+    "**Endpoint Discovery**: Use tools like `ffuf` or `KiteRunner` to find hidden administrative API endpoints not linked in the UI.",
+    "**Parameter Manipulation**: Identify and modify parameters that might signal an administrative context (e.g., changing `user` to `admin` in a path).",
+    "**Authorization Mapping**: Systematically test every discovered endpoint with both privileged and unprivileged session tokens to identify gaps."
+  ],
+  "ptes_mapping": [
+    {
+      "phase": "Pre-Engagement Interaction",
+      "simple": "Defining the testing scope to include all administrative and debugger API endpoints.",
+      "technical": "Establishing a rules-of-engagement that permits testing of system-wide destructive functions under controlled conditions."
+    },
+    {
+      "phase": "Intelligence Gathering",
+      "simple": "Searching for hidden 'admin' or 'debug' words in the application's source code or JS files.",
+      "technical": "Using directory fuzzing and JavaScript static analysis to discover unlinked API routes like /api/v1/system/debug."
+    },
+    {
+      "phase": "Threat Modeling",
+      "simple": "Thinking like an attacker to identify where administrative shortcuts might have been left unprotected.",
+      "technical": "Mapping discovered administrative endpoints to the backend controllers that lack role validation middleware."
+    },
+    {
+      "phase": "Vulnerability Analysis",
+      "simple": "Checking if the backend actually verifies user permissions before performing a sensitive task.",
+      "technical": "Verifying the absence of authorization decorators or functional guards on sensitive backend API entries."
+    },
+    {
+      "phase": "Exploitation",
+      "simple": "Trying to access an administrative function while logged in as a normal person.",
+      "technical": "Directly invoking discovered administrative endpoints using a standard user's session token to verify execution."
+    },
+    {
+      "phase": "Post-Exploitation",
+      "simple": "Evaluating the maximum damage an attacker can do once they gain administrative access.",
+      "technical": "Evaluating the risk of persistent system-wide compromise, such as wiping logs or creating new root users."
+    },
+    {
+      "phase": "Reporting",
+      "simple": "Writing down exactly how we bypassed the functional check so the developers can fix it.",
+      "technical": "Documenting the specific missing authorization check with a provided exploit payload that proves functional bypass."
+    }
+  ],
+  "osstmm_analysis": [
+    {
+      "principle": "Operational Security Testing",
+      "simple": "Checking if the security rules actually work in the real-world running application.",
+      "technical": "Verifying that the operational logic of sensitive functions doesn't implicitly trust the source of the request."
+    },
+    {
+      "principle": "Trust Boundary Analysis",
+      "simple": "Making sure there is a hardened wall between normal users and system configurations.",
+      "technical": "Evaluating the enforcement of the trust boundary between standard user sessions and privileged administrative routines."
+    },
+    {
+      "principle": "Security Control Verification",
+      "simple": "Testing the digital 'locks' on every API function to see if they hold up to manipulation.",
+      "technical": "Validating the presence and effectiveness of server-side authorization middleware for every sensitive functional call."
+    }
+  ],
+  "manual_checklist": [
+    "**Capture Request**: Use a proxy tool to intercept a standard user request and inspect the structure.",
+    "**Identify Parameters**: Look for identifiers or paths that suggest functional control (e.g., id, role, admin).",
+    "**Modify Identifiers**: Change parameters or URL paths to target administrative functional endpoints.",
+    "**Observe Response**: Check if the server returns privileged data or performs the action without an error.",
+    "**Verify Validation**: Confirm that the backend lacks a server-side check for the required user role."
+  ],
+  "automated_tools": [
+    {
+      "name": "KiteRunner",
+      "description": "An incredibly fast tool for discover hidden API routes by scanning for common endpoint patterns."
+    },
+    {
+      "name": "Burp Suite (BCheck scripts)",
+      "description": "I use custom BChecks to automatically replay every request I make with 'Admin' headers to see if the server accepts them."
+    }
+  ],
+  "prevention_strategy": [
+    "**Mandatory Auth Layer**: Every single controller must inherit from a 'Protected Controller' class that forces a permission check by default.",
+    "**Role-Based Access Control (RBAC)**: Implement a 'Role Matrix' where every function is mapped to the specific roles allowed to call it.",
+    "**Clean the Build**: Ensure that debug endpoints and testing scripts are never included in the production version of your application.",
+    "**Principle of Least Privilege**: Even admin accounts should be split into 'tiers' (e.g., Support, Manager, Root) so that a breach of one doesn't kill the whole system."
+  ],
+  "developer_mistakes": [
+    "**Implicit Trust**: Thinking that 'Knowing the URL' is the same thing as 'Being Authorized'.",
+    "**Obscurity over Security**: Believing that hidden API routes are safe just because they aren't linked in the homepage.",
+    "**Staging-to-Prod Leakage**: Forgetting to remove the 'Quick Login' or 'Database Reset' functions used during development."
+  ],
+  "bug_bounty_example": {
+    "title": "Wiping a Cloud Provider's Entire Customer Database",
+    "summary": "I found a hidden debug endpoint at `/api/internal/debug/reset-environment`. It was meant for the dev team, but it was active in production and didn't check for any authentication.",
+    "steps": [
+      "I was scanning their primary domain and found the `/api/internal` directory.",
+      "I used a wordlist to find the `/debug/reset-environment` path.",
+      "I sent a single POST request and the server responded with 'System reset successful. All testing data destroyed'.",
+      "I realized I had just wiped their entire production environment."
+    ],
+    "recommendation": "Use a global 'Must Be Authenticated AND Admin' middleware for every single route in the `/api/internal` prefix."
+  },
+  "comparison_table": [
+    {
+      "feature": "Enforcement Logic",
+      "target": "UI-Based Hiding",
+      "difference": "Merely a suggestion to the user. Easily bypassed by typing the URL."
+    },
+    {
+      "feature": "Enforcement Logic",
+      "target": "Function-Level Check",
+      "difference": "The final authority. If the check fails, the code never runs. Total security."
+    }
+  ],
+  "key_takeaways": [
+    "If you didn't lock the function, you didn't lock the app.",
+    "Hidden endpoints are a time bomb waiting for a scanner to find them.",
+    "True security must be enforced at the point of execution, not the point of visibility."
+  ],
+  "strategic_conclusion": "Missing Function-Level Access Control is a persistent threat because modern applications are too complex to secure manually. To prevent these 'silent bypasses', we must adopt 'Defensive-by-Design' frameworks where security isn't an 'add-on' but a mandatory part of every function's DNA. In an age where every API is a target, we have to assume that everything hidden will eventually be found."
+}

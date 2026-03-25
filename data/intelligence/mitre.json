@@ -1,0 +1,32 @@
+[
+  {
+    "id": "T1068",
+    "name": "Exploitation for Privilege Escalation",
+    "description": "Adversaries may exploit software vulnerabilities in an attempt to elevate privileges.",
+    "mappedSlug": "vertical-privilege-escalation-security-analysis"
+  },
+  {
+    "id": "T1548",
+    "name": "Abuse Elevation Control Mechanism",
+    "description": "Adversaries may circumvent mechanisms designed to control elevation of privileges to gain higher-level permissions.",
+    "mappedSlug": "broken-access-control-owasp-a01-analysis"
+  },
+  {
+    "id": "T1567",
+    "name": "Exfiltration Over Web Service",
+    "description": "Adversaries may use established web services of a similar nature to exfiltrate data from a compromised system.",
+    "mappedSlug": "idor-security-analysis"
+  },
+  {
+    "id": "T1078",
+    "name": "Valid Accounts",
+    "description": "Adversaries may obtain and abuse credentials of existing accounts as a means of gaining initial access, persistence, privilege escalation, or defense evasion.",
+    "mappedSlug": "horizontal-privilege-escalation-owasp-a01"
+  },
+  {
+    "id": "T1595",
+    "name": "Active Scanning",
+    "description": "Adversaries may execute active reconnaissance scans to gather information about systems or services that can be used during targeting.",
+    "mappedSlug": "forced-browsing-owasp-a01-analysis"
+  }
+]

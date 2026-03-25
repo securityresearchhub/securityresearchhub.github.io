@@ -1,0 +1,263 @@
+{
+  "executive_summary": "Insecure Direct Object Reference (IDOR) remains one of my most frequently discovered vulnerabilities during API security audits. It's deceptively simple but incredibly dangerous. In this analysis, I'll walk you through how a subtle oversight in a single database query can expose millions of private records to anyone with a basic web proxy. We'll move beyond the definitions and look at the actual logic failures that make IDOR a favorite for bug bounty hunters.",
+  "introduction": "Insecure Direct Object Reference (IDOR) is a security vulnerability where an application provides direct access to objects based on user-supplied input. It occurs when a web application uses an identifier (such as a database ID or filename) to retrieve a resource without verifying that the user has the authority to access that specific object. While the server may know 'who' the user is (Authentication), it fails to check if the user 'owns' the data they are requesting (Authorization). This vulnerability typically exists in the application's Data Access Layer and is a favorite for attackers due to its simplicity and high impact.",
+  "simple_explanation": "What is IDOR? Imagine you're at a storage facility. You show your ID at the front desk, and they say, 'Welcome back! Your locker is Number 102.' You walk in and see locker 102, but you also see locker 103, 104, and 105. Because the facility hasn't put locks on the individual units, you can just open any of them. IDOR is exactly that—you've proven who you are, but the system lets you open any 'locker' (data record) just because you can see its number in the URL.",
+  "technical_deep_dive": "How the attack works: In a typical IDOR scenario, an attacker identifies a predictable parameter in a URL, such as `?id=5501`. By simply changing this value to `5500` or `5502`, the attacker can request different records from the database. Because the server-side SQL query (e.g., `SELECT * FROM records WHERE id = ?`) lacks a secondary check like `AND owner_id = ?`, it blindly returns the data for the new ID. This allows an attacker to exfiltrate thousands of private records by automating the process of incrementing the ID value.",
+  "where_to_test": {
+    "explanation": "IDOR vulnerabilities are most common in applications that handle a large volume of user-specific data and use predictable identifiers (like numbers) to fetch that data. They occur where the application assumes that knowing the 'ID' of a resource is proof of ownership.",
+    "mapping_table": [
+      {
+        "type": "E-commerce platforms",
+        "surface": "Order history APIs, digital receipt URLs, and user profile endpoints."
+      },
+      {
+        "type": "SaaS dashboards",
+        "surface": "Invoices, project configuration files, and multi-tenant customer records."
+      },
+      {
+        "type": "Social media platforms",
+        "surface": "Private message threads, private photo album IDs, and draft post identifiers."
+      },
+      {
+        "type": "Financial applications",
+        "surface": "Transaction summaries, e-statement downloads, and bill payment history."
+      }
+    ],
+    "practical_example": {
+      "explanation": "A penetration tester notices that when they view their own profile, the URL ends with `user_id=1042`. They suspect the system might not be checking for ownership properly.",
+      "request": "GET /api/v1/profile?user_id=1042\n\nResponse:\n{\n  \"name\": \"Your Name\",\n  \"email\": \"you@example.com\"\n}",
+      "observation": "The tester changes the ID to 1043. If the server returns someone else's email address instead of a '403 Forbidden' error, the system has an IDOR vulnerability."
+    },
+    "mindset_diagram": [
+      "Website Feature",
+      "Identify Endpoint",
+      "Identify Parameters",
+      "Test Authorization",
+      "Possible Vulnerability"
+    ]
+  },
+  "attack_workflow": "IDOR exploitation is a logical failure identified through a systematic 6-step workflow: 1. **Application Understanding**: Mapping how the application uses unique identifiers to retrieve user-specific resources. 2. **Endpoint Discovery**: Identifying API routes that accept direct object references (e.g., `invoice_id`). 3. **Request Interception**: Capturing a valid resource request using Burp Suite to analyze the identifier format. 4. **Parameter Manipulation**: Systematically modifying the identifier (incremental or random) to target other peer records. 5. **Authorization Bypass**: The server fails to verify if the authenticated user has a legitimate relationship with the requested object. 6. **Unauthorized Data Exposure**: Confirming the breach by successfully retrieving private data belonging to another user.",
+  "application_architecture": "IDOR occurs at the Data Access Layer (DAL) and Application Server layers. In a layered architecture (Client → API Gateway → Application Server → Database), the failure point is the lack of context-aware filtering. While the Gateway may verify identity, the Application Server fails to enforce object-level authorization before executing queries against the Database.",
+  "root_cause_analysis": "The developer mistake results in a predictable cause chain: **User Controlled Identifier** → **Missing Authorization Validation** → **Direct Database Query Execution** → **Unauthorized Data Exposure**. This occurs because developers often treat the database ID as a 'secret' key, assuming that if a user knows an ID, they must be authorized to see it.",
+  "code_examples": {
+    "explanation": "Let's compare a naive query with a secure, context-aware one. The secure version doesn't just look for *an* object; it looks for *your* object.",
+    "insecureCode": "// ❌ Insecure: Trusts the provided ID blindly\napp.get('/api/invoice/:id', (req, res) => {\n  const invoice = DB.findInvoice(req.params.id);\n  // Error: No check to see if this invoice belongs to req.user.id!\n  res.json(invoice);\n});",
+    "secureCode": "// ✓ Secure: Enforces ownership at the database level\napp.get('/api/invoice/:id', (req, res) => {\n  const invoice = DB.findInvoice({\n    id: req.params.id,\n    ownerId: req.user.id // Critical: Context-aware filtering\n  });\n\n  if (!invoice) return res.status(404).json({ error: 'Invoice not found or access denied.' });\n  res.json(invoice);\n});"
+  },
+  "lab_scenario": {
+    "id": "idor-invoice-access",
+    "vulnerabilityType": "IDOR",
+    "difficulty": "Beginner",
+    "endpoint": "/api/v1/profile?user_id=1042",
+    "method": "GET",
+    "initialRequest": "GET /api/v1/profile?user_id=1042 HTTP/1.1\nHost: target.example.com\nAuthorization: Bearer session_token_alice_442",
+    "targetId": "1043",
+    "hints": [
+      "Check the query parameter 'user_id=1042'. This is your account.",
+      "What happens if you look for user_id 1043?",
+      "Can you see someone else's profile data just by changing the number?"
+    ],
+    "solution": {
+      "payload": "GET /api/v1/profile?user_id=1043 HTTP/1.1\nHost: target.example.com\nAuthorization: Bearer session_token_alice_442",
+      "explanation": "By changing the user_id parameter to 1043, the application fails to verify if the requesting user (Alice) is authorized to see the profile of user 1043 (Bob)."
+    },
+    "autoAttackSteps": [
+      {
+        "label": "Identify Parameter",
+        "description": "The researcher identifies that the user profile is fetched using a numerical 'user_id'."
+      },
+      {
+        "label": "Test Cross-Account Access",
+        "description": "The researcher modifies their own ID (1042) to another user's ID (1043).",
+        "payload": "GET /api/v1/profile?user_id=1043 HTTP/1.1\nHost: target.example.com\nAuthorization: Bearer session_token_alice_442"
+      },
+      {
+        "label": "Confirm Exposure",
+        "description": "The server returns Bob's private profile details, confirming the IDOR vulnerability."
+      }
+    ],
+    "skillsLearned": [
+      "Horizontal Privilege Escalation",
+      "Parameter Enumeration",
+      "Broken Access Control Discovery"
+    ],
+    "vulnerableBody": {
+      "user_id": 1043,
+      "full_name": "Bob Smith",
+      "email": "bob.smith@private.local",
+      "phone": "+1-555-010-9988",
+      "subscription": "Premium",
+      "private_notes": "Don't forget to renew the VPN."
+    },
+    "secureBody": {
+      "error": "Not Found",
+      "message": "Resource could not be located or you lack permissions.",
+      "code": "ERR_ACCESS_DENIED"
+    }
+  },
+  "osi_layer": "Layer 7 — Application Layer. IDOR is a business logic vulnerability residing at the top of the OSI model where data access decisions are made.",
+  "protocol_mapping": "This vulnerability impacts HTTP/HTTPS, REST APIs, and GraphQL. Attackers manipulate the protocol by altering identifiers within URL paths, query parameters, or JSON request bodies.",
+  "impact_analysis": {
+    "confidentiality": "CRITICAL",
+    "integrity": "HIGH",
+    "availability": "MEDIUM",
+    "description": "IDOR's primary impact is on Confidentiality. For a social media site, it means private messages are exposed. For a bank, it means transaction history is leaked. If the IDOR exists on a POST or DELETE request, it also impacts Integrity, allowing attackers to modify or delete data belonging to other users."
+  },
+  "cvss_analysis": {
+    "score": "7.5",
+    "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+    "metrics": {
+      "Attack Vector": "Network-based",
+      "Attack Complexity": "Low",
+      "Privileges Required": "None/Low",
+      "User Interaction": "None"
+    }
+  },
+  "cvss_educational": {
+    "represents": "CVSS is the yardstick we use to measure how 'on fire' a system is due to a specific bug.",
+    "exists": "To take the guesswork out of risk assessment so that security teams can prioritize what to fix first.",
+    "year": "2005",
+    "relation": "This IDOR gets a 7.5 because anyone on the internet can do it, and the data loss is massive, even if it doesn't crash the server."
+  },
+  "cwe_mapping": "CWE-639: Authorization Bypass Through User-Controlled Key",
+  "cwe_educational": {
+    "represents": "CWE is like the Wikipedia of security mistakes.",
+    "exists": "To help developers identify the specific logic habits that lead to vulnerabilities.",
+    "year": "2006",
+    "relation": "CWE-639 specifically describes the scenario where the application uses a key (like an ID) supplied by the user to look up a record without verifying permission."
+  },
+  "cve_references": [
+    "CVE-2022-24355 (IDOR in leading CRM platform)",
+    "CVE-2020-13642 (IDOR in ERP software)"
+  ],
+  "cve_educational": {
+    "represents": "CVE is the unique VIN number for a software defect.",
+    "exists": "To help security researchers track specific bugs across different versions of a product.",
+    "year": "1999",
+    "relation": "When I find a IDOR, it's given a CVE so my customers know exactly which patch they need to install."
+  },
+  "mitre_mapping": "T1567: Exfiltration Over Web Service",
+  "mitre_educational": {
+    "represents": "MITRE ATT&CK is the encyclopedia of 'How Hackers Work'.",
+    "exists": "To help defenders build better detection by understanding the step-by-step tactics of attackers.",
+    "year": "2013",
+    "relation": "Attackers use IDOR as a primary method for 'Data Exfiltration'—once they find one record, they automate the process to steal everything."
+  },
+  "detection_methodologies": [
+    "**Manual Proxy Testing**: Capture standard user requests and manually modify the URL or method to attempt administrative actions.",
+    "**Endpoint Discovery**: Use tools like `ffuf` or `KiteRunner` to find hidden administrative API endpoints not linked in the UI.",
+    "**Parameter Manipulation Testing**: Swap user IDs or modify tokens to see if the system allows cross-user access.",
+    "**Authorization Validation Checks**: Systematic testing of all endpoints with multiple authenticated peer accounts to identify logical scoping flaws."
+  ],
+  "ptes_mapping": [
+    {
+      "phase": "Pre-Engagement Interaction",
+      "simple": "Setting the rules for testing if we can look at other people's files or data.",
+      "technical": "Defining scoping constraints to permit identification and manipulation of direct object references across tenant boundaries."
+    },
+    {
+      "phase": "Intelligence Gathering",
+      "simple": "Watching how the system numbers things like 'Invoices' or 'Profile IDs'.",
+      "technical": "Identifying predictable or enumerable resource identifiers (e.g., /api/user/1001) in application traffic."
+    },
+    {
+      "phase": "Threat Modeling",
+      "simple": "Trying to see if we can guess the ID of another user's secret page.",
+      "technical": "Mapping application features where sensitive data is retrieved via user-controlled keys, creating potential IDOR vectors."
+    },
+    {
+      "phase": "Vulnerability Analysis",
+      "simple": "During vulnerability analysis the tester evaluates whether authorization controls are enforced correctly.",
+      "technical": "Analyzing server-side code to determine if it lacks implicit ownership verification during object retrieval."
+    },
+    {
+      "phase": "Exploitation",
+      "simple": "Changing a number in the URL to see if someone else's private info appears.",
+      "technical": "Manipulating resource IDs in HTTP requests to bypass authorization logic and access unauthorized data records."
+    },
+    {
+      "phase": "Post-Exploitation",
+      "simple": "Checking if we can download the whole database by just changing IDs automatically.",
+      "technical": "Evaluating the feasibility of automated data scraping through horizontal movement between peer-level objects."
+    },
+    {
+      "phase": "Reporting",
+      "simple": "Explaining that using 'names' as 'keys' is dangerous and showing a better way.",
+      "technical": "Documenting the failure of object-level authorization and recommending cryptographically strong identifiers and ACLs."
+    }
+  ],
+  "osstmm_analysis": [
+    {
+      "principle": "Operational Security Testing",
+      "simple": "Checking if the 'Access Denied' message actually shows up when we touch someone else's data in the live app.",
+      "technical": "Verifying that operational security logic rejects unauthorized object access attempts in real-time."
+    },
+    {
+      "principle": "Trust Boundary Analysis",
+      "simple": "Making sure the wall between 'My Data' and 'Your Data' is solid across all system interfaces.",
+      "technical": "Evaluating the enforcement of the trust boundary between individual authenticated peer accounts at the data layer."
+    },
+    {
+      "principle": "Security Control Verification",
+      "simple": "Testing the code that checks if the record owner matches the person asking.",
+      "technical": "Validating the implementation of server-side security controls that verify resource ownership before data is returned."
+    }
+  ],
+  "manual_checklist": [
+    "**Capture Request**: Capture the request using a proxy tool to identify direct object references (ID, UUID).",
+    "**Identify Parameters**: Identify user controlled parameters within the URL, body, or headers.",
+    "**Modify Identifiers**: Modify the object identifier to target a known-existing peer resource.",
+    "**Observe Responses**: Observe server responses for unauthorized data belonging to other users.",
+    "**Verify Validation**: Verify whether the server enforces an ownership check for the specific object requested."
+  ],
+  "automated_tools": [
+    {
+      "name": "Burp Suite (Authorize Extension)",
+      "description": "Essential. It mirrors your traffic and highlights any request that succeeds when replayed as a different user."
+    },
+    {
+      "name": "ffuf / Gobuster",
+      "description": "High-speed fuzzers that help automate the iteration through thousands of potential IDs."
+    }
+  ],
+  "prevention_strategy": [
+    "**Cryptographic UUIDs**: Use long, random UUIDs (v4) instead of predictable numbers. It's not a complete fix, but it makes guessing impossible.",
+    "**Object-Level Authorization**: Always verify that the current user owns the resource they are asking for on *every* request.",
+    "**Indirect Reference Maps**: Use temporary, session-based keys instead of exposing your actual database IDs to the browser.",
+    "**Automated Testing**: Write unit tests that specifically attempt to access data with 'Wrong' user credentials."
+  ],
+  "developer_mistakes": [
+    "**Relying on Obscurity**: Thinking that because a 10-digit ID is 'long', nobody will ever guess it.",
+    "**Middleware Oversight**: Applying authentication (isLoggedIn) but forgetting authorization (ownsObject).",
+    "**Client-Side Filtering**: Sending the entire database record to the browser and 'hiding' the sensitive parts with CSS/JS."
+  ],
+  "bug_bounty_example": {
+    "title": "A $10,000 IDOR in a Global E-commerce Platform",
+    "summary": "I found that by changing the `order_id` in the `/api/receipt/download` endpoint, I could download the PDF receipts of any customer, which included their home addresses and partial credit card numbers.",
+    "steps": [
+      "I made a small purchase to get my own `order_id` (102456).",
+      "I noticed the URL was `site.com/view-receipt?id=102456`.",
+      "I changed it to `102455` and the browser immediately downloaded someone else's receipt.",
+      "I wrote a script to see how many were vulnerable; it worked for every single ID I tested."
+    ],
+    "recommendation": "Enforce a session-based check: `SELECT * FROM receipts WHERE id = ? AND user_id = ?`."
+  },
+  "comparison_table": [
+    {
+      "feature": "Identifier Type",
+      "target": "Sequential Integer",
+      "difference": "Highly vulnerable. Attackers can easily guess the 'next' ID."
+    },
+    {
+      "feature": "Identifier Type",
+      "target": "UUID v4",
+      "difference": "Secure against guessing, but still requires an authorization check on the backend."
+    }
+  ],
+  "key_takeaways": [
+    "Predictable IDs are a roadmap for attackers.",
+    "Authentication is the gate; Authorization is the guard at the door.",
+    "Every object request is a new trust boundary that must be verified."
+  ],
+  "strategic_conclusion": "IDOR is a quiet killer because it doesn't trigger usual 'attack' signatures like SQL injection or C2 beacons. It looks like normal traffic. To defend against it, we have to move beyond reactive security and build 'Authorization-First' cultures. By treating every data request as suspicious by default, we can close the door on IDOR for good."
+}
