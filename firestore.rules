@@ -1,0 +1,37 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // subscribers: Create-only, no read/update/delete
+    match /subscribers/{token} {
+      allow create: if request.resource.data.token == token
+                   && request.resource.data.createdAt == request.time;
+      allow read, update, delete: if false;
+    }
+
+    // blogLikes: Public read, strict +1 increment on update, create with 1 only
+    match /blogLikes/{slug} {
+      allow read: if true;
+      
+      allow create: if request.resource.data.likes == 1;
+      
+      allow update: if request.resource.data.likes == resource.data.likes + 1
+                   && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']);
+      
+      allow delete: if false;
+    }
+
+    // blogShares: Public read, strict +1 increment on total, create with 1 only
+    match /blogShares/{slug} {
+      allow read: if true;
+      
+      allow create: if request.resource.data.total == 1;
+      
+      allow update: if request.resource.data.total == resource.data.total + 1
+                   && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['whatsapp', 'linkedin', 'twitter', 'total']);
+      
+      allow delete: if false;
+    }
+  }
+}

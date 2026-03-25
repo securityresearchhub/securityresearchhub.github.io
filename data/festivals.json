@@ -1,0 +1,81 @@
+{
+    "festivals": {
+        "2025": {
+            "Holi": "03-14",
+            "Ugadi": "03-30",
+            "Gudi Padwa": "03-30",
+            "Onam": "09-05",
+            "Ganesh Chaturthi": "08-27",
+            "Navratri": "09-22",
+            "Diwali": "10-20",
+            "Maha Shivratri": "02-26",
+            "Raksha Bandhan": "08-09"
+        },
+        "2026": {
+            "Holi": "03-03",
+            "Ugadi": "03-19",
+            "Gudi Padwa": "03-19",
+            "Onam": "08-27",
+            "Ganesh Chaturthi": "09-14",
+            "Navratri": "10-12",
+            "Diwali": "11-08",
+            "Maha Shivratri": "02-15",
+            "Raksha Bandhan": "08-28"
+        },
+        "2027": {
+            "Holi": "03-22",
+            "Ugadi": "04-07",
+            "Gudi Padwa": "04-07",
+            "Onam": "09-13",
+            "Ganesh Chaturthi": "09-04",
+            "Navratri": "09-30",
+            "Diwali": "10-29",
+            "Maha Shivratri": "03-06",
+            "Raksha Bandhan": "08-17"
+        },
+        "2028": {
+            "Holi": "03-11",
+            "Ugadi": "03-26",
+            "Gudi Padwa": "03-26",
+            "Onam": "09-01",
+            "Ganesh Chaturthi": "08-24",
+            "Navratri": "09-19",
+            "Diwali": "10-17",
+            "Maha Shivratri": "02-23",
+            "Raksha Bandhan": "08-05"
+        },
+        "2029": {
+            "Holi": "03-01",
+            "Ugadi": "03-16",
+            "Gudi Padwa": "03-16",
+            "Onam": "08-21",
+            "Ganesh Chaturthi": "09-11",
+            "Navratri": "10-08",
+            "Diwali": "11-05",
+            "Maha Shivratri": "02-11",
+            "Raksha Bandhan": "08-24"
+        },
+        "2030": {
+            "Holi": "03-19",
+            "Ugadi": "04-03",
+            "Gudi Padwa": "04-03",
+            "Onam": "09-08",
+            "Ganesh Chaturthi": "09-01",
+            "Navratri": "09-27",
+            "Diwali": "10-26",
+            "Maha Shivratri": "03-02",
+            "Raksha Bandhan": "08-13"
+        }
+    },
+    "mapping": {
+        "Kerala": "Onam",
+        "Tamil Nadu": "Pongal",
+        "Andhra Pradesh": "Ugadi",
+        "Telangana": "Ugadi",
+        "Maharashtra": "Gudi Padwa",
+        "Punjab": "Baisakhi",
+        "West Bengal": "Durga Puja",
+        "Gujarat": "Navratri",
+        "Karnataka": "Ugadi"
+    }
+}

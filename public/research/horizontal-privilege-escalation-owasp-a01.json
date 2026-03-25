@@ -1,0 +1,260 @@
+{
+  "executive_summary": "Horizontal Privilege Escalation (HPE) is essentially a neighbor-to-neighbor breach. While it doesn't give an attacker 'God-mode' like vertical escalation, it allows for massive data harvesting of peer accounts. In this dossier, I'll demonstrate how a simple failure in logical scoping can turn a standard user into a silent observer of thousands of other people's private data. We'll look at why 'being logged in' is only half the battle for security.",
+  "introduction": "Horizontal Privilege Escalation (HPE) is a security vulnerability where an attacker gains access to resources or data belonging to another user who has the same level of permissions. It occurs when an application validates that a user is logged in (Authentication) but fails to check if that user actually owns the specific resource being requested (Authorization). This vulnerability typically exists in the application's data-access logic and is extremely common in multi-tenant SaaS environments where users are 'peers' but should remain isolated from each other.",
+  "simple_explanation": "What is Horizontal Privilege Escalation? Imagine you live in an apartment complex. You have a key for your own front door (Authentication). But when you walk down the hallway, you realize that your key also fits into your neighbor's door, and the one after that. You haven't become the building manager (Vertical Escalation), but you can now enter anyone's home. HPE is exactly that—using your valid login to peek into someone else's private account just because the system doesn't check *which* account you are opening.",
+  "technical_deep_dive": "How the attack works: During my research on a multi-tenant platform, I identified a flaw where the endpoint `GET /api/workspaces/:id/members` checked if the requester was a 'valid user' but failed to check if they were a member of the *specific* workspace ID provided in the URL. By simply changing the `:id` to a value belonging to another company, I could list every employee and their email addresses. This occurs because the backend executes a database query like `Workspace.findById(id)` without a secondary check to ensure the `current_user` has a relationship with that workspace.",
+  "where_to_test": {
+    "explanation": "Horizontal Privilege Escalation (HPE) is most common in multi-tenant SaaS environments where users at the same permission level (e.g., standard users) handle private data. It happens because developers focus on 'can this user login?' rather than 'does this user own this specific item?'.",
+    "mapping_table": [
+      {
+        "type": "Subscription Services",
+        "surface": "Billing details, stored payment methods, and personal account settings of other users."
+      },
+      {
+        "type": "CRM Systems",
+        "surface": "Customer leads, sales notes, and contact info belonging to other sales representatives."
+      },
+      {
+        "type": "Learning Management (LMS)",
+        "surface": "Private grades, submitted assignments, and personal feedback of other students."
+      },
+      {
+        "type": "Messaging Apps",
+        "surface": "Attaching a foreign `message_id` to a request to read threads you aren't part of."
+      }
+    ],
+    "practical_example": {
+      "explanation": "A user named Alice logs in and edits her profile. She notices her browser sends a POST request with her own ID in the body.",
+      "request": "POST /api/v1/user/update\n{\n  \"id\": \"user_alice\",\n  \"bio\": \"New Bio\"\n}",
+      "observation": "If Alice changes the ID to `user_bob` and the server updates Bob's bio instead of throwing an error, Horizontal Privilege Escalation is present. Alice and Bob are both 'Users', but Alice shouldn't be able to edit Bob."
+    },
+    "mindset_diagram": [
+      "Website Feature",
+      "Identify Endpoint",
+      "Identify Parameters",
+      "Test Authorization",
+      "Possible Vulnerability"
+    ]
+  },
+  "attack_workflow": "Horizontal Privilege Escalation (HPE) is discovered through a methodical 6-step logical assessment: 1. **Application Understanding**: The tester maps how standard users interact with their own data (e.g., profiles, orders). 2. **Endpoint Discovery**: Identifying API endpoints that retrieve data via user-controlled identifiers (e.g., `/api/user/101`). 3. **Request Interception**: Capturing valid data requests using Burp Suite to analyze object reference patterns. 4. **Parameter Manipulation**: Replacing the tester's own ID with another user's ID in the request parameters. 5. **Authorization Bypass**: The server fails to verify if the authenticated requester actually owns the resource being requested. 6. **Unauthorized Data Exposure**: Confirming the breach by receiving private data belonging to a peer user account.",
+  "application_architecture": "HPE manifests at the Application Server and Database layers. In a multi-layered system (Client → API Gateway → Application Server → Database), the failure occurs when the Application Server's business logic does not scope its Database queries to the authenticated user's session. While identity is verified, contextual ownership is ignored at the architectural level.",
+  "root_cause_analysis": "The developer mistake results in a predictable cause chain: **User Controlled Identifier** → **Missing Authorization Validation** → **Direct Database Query Execution** → **Unauthorized Data Exposure**. This happens because developers often focus on *authentication* (who you are) while neglecting *authorization* (what you can do with specific objects).",
+  "code_examples": {
+    "explanation": "Let's look at how a 'Global' query differs from a 'Scoped' query. One exposes the whole world; the other keeps you in your own lane.",
+    "insecureCode": "// ❌ Insecure: Only checks if the user is authenticated\napp.get('/api/projects/:projectId', isAuthenticated, (req, res) => {\n  const project = DB.projects.find(req.params.projectId);\n  // Bug: This returns the project regardless of who owns it!\n  res.json(project);\n});",
+    "secureCode": "// ✓ Secure: Scopes the query to the user's own project list\napp.get('/api/projects/:projectId', isAuthenticated, (req, res) => {\n  const project = DB.projects.findOne({\n    _id: req.params.projectId,\n    ownerId: req.user.id // Critical constraint\n  });\n\n  if (!project) return res.status(404).json({ error: 'Project not found or unauthorized.' });\n  res.json(project);\n});"
+  },
+  "lab_scenario": {
+    "id": "hpe-workspace-leak",
+    "vulnerabilityType": "Horizontal Privilege Escalation",
+    "difficulty": "Intermediate",
+    "endpoint": "/api/v1/workspaces/ws-501/members",
+    "method": "GET",
+    "initialRequest": "GET /api/v1/workspaces/ws-501/members HTTP/1.1\nHost: saas-platform.local\nAuthorization: Bearer my_ws_token_112",
+    "targetId": "ws-502",
+    "hints": [
+      "You are a member of workspace 'ws-501'.",
+      "Guess the ID of a peer workspace (e.g., ws-502).",
+      "Can you list members of a workspace you don't belong to?"
+    ],
+    "solution": {
+      "payload": "GET /api/v1/workspaces/ws-502/members HTTP/1.1\nHost: saas-platform.local\nAuthorization: Bearer my_ws_token_112",
+      "explanation": "The server returns the member list for ws-502 because it only verifies the token is valid, not if the token-holder has access to the specific workspace ID provided."
+    },
+    "autoAttackSteps": [
+      {
+        "label": "Observe Request Pattern",
+        "description": "The attacker notes that workspace members are fetched via a predictable slug (ws-501)."
+      },
+      {
+        "label": "Enumerate Peer Workspace",
+        "description": "The attacker attempts to access the membership list of ws-502.",
+        "payload": "GET /api/v1/workspaces/ws-502/members HTTP/1.1\nHost: saas-platform.local\nAuthorization: Bearer my_ws_token_112"
+      },
+      {
+        "label": "Confirm Data Leakage",
+        "description": "The server returns a lists of sensitive employee emails for another company (ws-502)."
+      }
+    ],
+    "skillsLearned": [
+      "Multi-tenant Isolation Testing",
+      "Logical Scoping Analysis",
+      "SaaS Data Leakage Discovery"
+    ],
+    "vulnerableBody": [
+      { "name": "CEO Company B", "email": "ceo@victim-corp.com", "role": "owner" },
+      { "name": "Lead Developer", "email": "dev-lead@victim-corp.com", "role": "admin" },
+      { "name": "HR Manager", "email": "hr@victim-corp.com", "role": "member" }
+    ],
+    "secureBody": {
+      "error": "Not Found",
+      "message": "Workspace not found or access restricted.",
+      "code": "404"
+    }
+  },
+  "osi_layer": "Layer 7 — Application Layer. HPE flaws are logic failures at the top of the OSI stack where business rules and data access permissions are defined.",
+  "protocol_mapping": "This vulnerability affects HTTP/HTTPS, REST APIs, and GraphQL. Testers manipulate these protocols by altering resource identifiers within HTTP request paths, headers, or bodies.",
+  "impact_analysis": {
+    "confidentiality": "CRITICAL",
+    "integrity": "HIGH",
+    "availability": "MEDIUM",
+    "description": "The impact of HPE is primarily on Confidentiality—imagine an attacker reading every private message on a social network. However, if the flaw is on an 'Update' or 'Delete' route, it also destroys Integrity. An attacker could change the password or delete the data of every other person on the platform, one by one."
+  },
+  "cvss_analysis": {
+    "score": "7.1",
+    "vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:L/A:N",
+    "metrics": {
+      "Attack Vector": "Network-based",
+      "Attack Complexity": "Low",
+      "Privileges Required": "Low (any user account)",
+      "User Interaction": "None"
+    }
+  },
+  "cvss_educational": {
+    "represents": "CVSS calculates the 'Blast Radius' of a digital explosion.",
+    "exists": "To help security teams speak a common language when deciding what to patch during an emergency.",
+    "year": "2005",
+    "relation": "This HPE scores a 7.1 because while it's easy to do, it usually requires at least a low-privileged account to start with."
+  },
+  "cwe_mapping": "CWE-285: Improper Authorization (Lateral movement subtype)",
+  "cwe_educational": {
+    "represents": "CWE is the 'Taxonomy of Human Error' in code.",
+    "exists": "To ensure that we aren't just fixing bugs, but understanding the patterns that create them.",
+    "year": "2006",
+    "relation": "CWE-285 specifically flags when the software doesn't check if you have the 'right' to do what you're doing, even if it knows who you are."
+  },
+  "cve_references": [
+    "CVE-2021-22911 (HPE in widespread monitoring tool)",
+    "CVE-2018-1999002 (HPE in popular collaboration hub)"
+  ],
+  "cve_educational": {
+    "represents": "CVE is the unique ID for a specific bug that made it into production.",
+    "exists": "To synchronize the global security community so we all know which software is currently 'sick'.",
+    "year": "1999",
+    "relation": "If an HPE bug is found in a product like Slack or Trello, it gets a CVE so millions of users know to update."
+  },
+  "mitre_mapping": "T1078: Valid Accounts (Using legitimate credentials for malicious harvesting)",
+  "mitre_educational": {
+    "represents": "MITRE ATT&CK is the 'Anatomy of an Attack'.",
+    "exists": "To help us visualize the steps an attacker takes, from the first click to the final data theft.",
+    "year": "2013",
+    "relation": "In HPE, the attacker uses a 'Valid Account'—the most dangerous weapon because it looks like normal traffic to most security tools."
+  },
+  "detection_methodologies": [
+    "**Manual Proxy Testing**: Capture standard user requests and manually modify the URL or method to attempt administrative actions.",
+    "**Endpoint Discovery**: Use tools like `ffuf` or `KiteRunner` to find hidden administrative API endpoints not linked in the UI.",
+    "**Parameter Manipulation Testing**: Swap user IDs or modify tokens to see if the system allows cross-user access.",
+    "**Authorization Validation Checks**: Systematically testing all endpoints with multiple authenticated peer accounts to identify logical scoping flaws."
+  ],
+  "ptes_mapping": [
+    {
+      "phase": "Pre-Engagement Interaction",
+      "simple": "Defining the rules for testing if users can peek at each other's private information.",
+      "technical": "Establishing scoping constraints to permit peer-to-peer authorization testing without impacting real user data privacy."
+    },
+    {
+      "phase": "Intelligence Gathering",
+      "simple": "Observing how the system names and numbers user files or profile pages.",
+      "technical": "Identifying predictable patterns in resource identifiers, such as sequential user IDs or UUIDs in API request parameters."
+    },
+    {
+      "phase": "Threat Modeling",
+      "simple": "Trying to guess what another user's private URL might look like.",
+      "technical": "Mapping application features where sensitive data is retrieved via user-controlled keys, creating potential IDOR vectors."
+    },
+    {
+      "phase": "Vulnerability Analysis",
+      "simple": "During vulnerability analysis the tester evaluates whether authorization controls are enforced correctly.",
+      "technical": "Analyzing server-side logic to determine if ownership validation is integrated into data retrieval operations."
+    },
+    {
+      "phase": "Exploitation",
+      "simple": "Changing our account number to someone else's to see if their data pops up.",
+      "technical": "Manipulating resource identifiers in HTTP requests to access data belonging to other users within the same privilege tier."
+    },
+    {
+      "phase": "Post-Exploitation",
+      "simple": "Seeing if we can download the whole database by just changing one number at a time.",
+      "technical": "Evaluating the feasibility of large-scale automated data exfiltration using the discovered authorization bypass."
+    },
+    {
+      "phase": "Reporting",
+      "simple": "Proving that the 'user wall' is broken and explaining how to build a stronger one.",
+      "technical": "Documenting the failure of ownership-based authorization and recommending centralized object-level checks."
+    }
+  ],
+  "osstmm_analysis": [
+    {
+      "principle": "Operational Security Testing",
+      "simple": "Verifying that the system checks for ownership on every single click in the running application.",
+      "technical": "Ensuring that the operational security logic validates user permissions for every specific object request."
+    },
+    {
+      "principle": "Trust Boundary Analysis",
+      "simple": "Verifying that the digital lines between different peer user accounts are bulletproof.",
+      "technical": "Evaluating the enforcement of the trust boundary between individual authenticated peer accounts."
+    },
+    {
+      "principle": "Security Control Verification",
+      "simple": "Testing every security rule to ensure it correctly restricts data to the rightful owner.",
+      "technical": "Validating the implementation of backend security controls that explicitly verify object ownership before data return."
+    }
+  ],
+  "manual_checklist": [
+    "**Capture Request**: Capture the request using a proxy tool to understand the resource retrieval structure.",
+    "**Identify Parameters**: Identify user controlled parameters that represent object identifiers or user IDs.",
+    "**Modify Identifiers**: Modify object identifiers to target resources belonging to other users.",
+    "**Observe Responses**: Observe server responses for unauthorized data belonging to different user accounts.",
+    "**Verify Validation**: Verify whether the server-side logic correctly scopes the request to the authenticated user."
+  ],
+  "automated_tools": [
+    {
+      "name": "Burp Suite (BCheck scripts)",
+      "description": "I've written custom BChecks that automatically look for HPE by swapping IDs between my two testing sessions."
+    },
+    {
+      "name": "Postman Collections",
+      "description": "Great for iterating through a list of 'other' IDs while holding a single valid dev token."
+    }
+  ],
+  "prevention_strategy": [
+    "**Automatic Scoping**: Use a database library that forces you to provide an `ownerId` or `tenantId` in every find/update query.",
+    "**Indirect References**: Don't use your actual Database IDs in the URL. Use temporary, session-linked tokens that change every time.",
+    "**Relationship Testing**: Build automated 'Red-Team' tests into your CI/CD that specifically try to access data across user boundaries.",
+    "**Granular RBAC**: Implement a 'Ownership' layer in your permissions model rather than just 'Roles'."
+  ],
+  "developer_mistakes": [
+    "**Implicit Trust**: Assuming that because a user is 'logged in', they can only see their own data.",
+    "**UI-Driven Logic**: Thinking that because the 'Other Users' list is hidden, an attacker won't find their IDs.",
+    "**Missing Joint-Queries**: Forgetting to join the `Permissions` table in every single Data Access request."
+  ],
+  "bug_bounty_example": {
+    "title": "Accessing 5,000 Private Resumes on a Jobs Site",
+    "summary": "I discovered that by changing the `resume_id` in the URL, I could download the private PDF resume of any job seeker on the platform, including their phone numbers and home addresses.",
+    "steps": [
+      "I uploaded my own resume and saw the ID was `RES-11200`.",
+      "I changed the number to `RES-11199`.",
+      "The server returned the resume of a Senior Developer at Google.",
+      "I realized I could scrape every resume on the site using a 10-line Python script."
+    ],
+    "recommendation": "Before the server sends the file, it must check: `if (resume.userId !== currentUser.id) return 403;`"
+  },
+  "comparison_table": [
+    {
+      "feature": "Escalation Type",
+      "target": "Vertical",
+      "difference": "Gaining higher powers (e.g., User to Admin)."
+    },
+    {
+      "feature": "Escalation Type",
+      "target": "Horizontal",
+      "difference": "Accessing peer data (e.g., User A to User B). Equally dangerous to privacy."
+    }
+  ],
+  "key_takeaways": [
+    "Being logged in is not a certificate of trust; it's just the first step.",
+    "Horizontal theft is the most common cause of massive privacy breaches.",
+    "Identity mapping must be enforced at the database level."
+  ],
+  "strategic_conclusion": "Horizontal Privilege Escalation is the 'Invisible Breach'. It doesn't break the system; it just leaks it dry. To prevent this, developers must move beyond simple 'Are you an admin?' checks and embrace 'Contextual Ownership'. Every time an application touches data, it must verify the relationship between the requester and the resource. Digital privacy depends on it."
+}

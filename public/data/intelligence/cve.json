@@ -1,0 +1,56 @@
+[
+  {
+    "id": "CVE-2022-24355",
+    "title": "IDOR Vulnerability in Enterprise API",
+    "description": "An insecure direct object reference (IDOR) was found in the enterprise API endpoints, allowing unauthorized access to cross-tenant data. This lead to a major data exposure incident.",
+    "cvss": 7.5,
+    "cwe": "CWE-639",
+    "mitre": "T1567",
+    "mappedSlug": "idor-security-analysis"
+  },
+  {
+    "id": "CVE-2023-28121",
+    "title": "Broken Access Control in WordPress Plugin",
+    "description": "Unauthorized access to sensitive administrative functions due to improper authorization checks in a popular WooCommerce plugin.",
+    "cvss": 8.8,
+    "cwe": "CWE-284",
+    "mitre": "T1548",
+    "mappedSlug": "broken-access-control-owasp-a01-analysis"
+  },
+  {
+    "id": "CVE-2021-3156",
+    "title": "Sudo Baron Samedit - Heap-Based Buffer Overflow",
+    "description": "A heap-based buffer overflow in sudo allows any local user to gain root privileges without authentication.",
+    "cvss": 7.8,
+    "cwe": "CWE-122",
+    "mitre": "T1068",
+    "mappedSlug": "vertical-privilege-escalation-security-analysis"
+  },
+  {
+    "id": "CVE-2022-23131",
+    "title": "Forced Browsing in Zabbix Frontend",
+    "description": "Forced browsing vulnerability in Zabbix frontend allows an authenticated user to access restricted pages by modifying URL parameters directly.",
+    "cvss": 5.3,
+    "cwe": "CWE-425",
+    "mitre": "T1595",
+    "mappedSlug": "forced-browsing-owasp-a01-analysis"
+  },
+  {
+    "id": "CVE-2021-22911",
+    "title": "Horizontal Privilege Escalation in Rocket.Chat",
+    "description": "Improper authorization checks in Rocket.Chat allow attackers to read messages and access resources belonging to other users at the same privilege level.",
+    "cvss": 7.1,
+    "cwe": "CWE-285",
+    "mitre": "T1078",
+    "mappedSlug": "horizontal-privilege-escalation-owasp-a01"
+  },
+  {
+    "id": "CVE-2022-29072",
+    "title": "Missing Function-Level Access Control in 7-Zip",
+    "description": "A vulnerability in 7-Zip allows attackers to escalate privileges by accessing administrative functions that are not properly protected.",
+    "cvss": 9.1,
+    "cwe": "CWE-285",
+    "mitre": "T1068",
+    "mappedSlug": "missing-function-level-access-control-owasp-a01"
+  }
+]
