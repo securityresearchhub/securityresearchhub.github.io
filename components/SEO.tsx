@@ -11,7 +11,7 @@ interface SEOProps {
 
 export const SEO: React.FC<SEOProps> = ({ title, description, image, article, canonical }) => {
   const { pathname } = useLocation();
-  const siteUrl = 'https://manivarmacyber.github.io';
+  const siteUrl = 'https://securityresearchhub.github.io';
   
   useEffect(() => {
     // Title

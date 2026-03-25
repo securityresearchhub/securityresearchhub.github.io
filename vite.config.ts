@@ -161,7 +161,7 @@ Sitemap: ${siteUrl}/sitemap.xml`;
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
-  const siteUrl = env.VITE_SITE_URL || 'https://manivarmacyber.github.io';
+  const siteUrl = env.VITE_SITE_URL || 'https://securityresearchhub.github.io';
 
   return {
     base: '/',

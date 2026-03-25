@@ -7,7 +7,7 @@ const rootDir = path.resolve(__dirname, '..');
 const blogPostsPath = path.join(rootDir, 'data', 'blogPosts.ts');
 const sitemapPath = path.join(rootDir, 'public', 'sitemap.xml');
 
-const domain = process.env.VITE_SITE_URL || 'https://manivarmacyber.github.io';
+const domain = process.env.VITE_SITE_URL || 'https://securityresearchhub.github.io';
 
 // Standard routes defined in App.tsx
 const staticRoutes = [
