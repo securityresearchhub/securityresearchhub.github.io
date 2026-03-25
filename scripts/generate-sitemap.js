@@ -9,60 +9,75 @@ const sitemapPath = path.join(rootDir, 'public', 'sitemap.xml');
 
 const domain = process.env.VITE_SITE_URL || 'https://securityresearchhub.github.io';
 
-// Standard routes defined in App.tsx
 const staticRoutes = [
-  { path: '', priority: '1.0' },
-  { path: '/blog', priority: '0.9' },
-  { path: '/research', priority: '0.9' },
-  { path: '/research-hub', priority: '0.9' },
-  { path: '/database', priority: '0.85' },
-  { path: '/vulnerabilities', priority: '0.8' },
-  { path: '/about', priority: '0.7' },
-  { path: '/contact', priority: '0.7' },
-  { path: '/privacy', priority: '0.5' },
-  { path: '/terms', priority: '0.5' },
-  { path: '/disclaimer', priority: '0.5' },
-  { path: '/legal-use', priority: '0.5' },
-  { path: '/copyright', priority: '0.5' },
+  { path: '', priority: '1.0', changefreq: 'daily' },
+  { path: '/blog', priority: '0.9', changefreq: 'daily' },
+  { path: '/privacy', priority: '0.5', changefreq: 'yearly' },
+  { path: '/terms', priority: '0.5', changefreq: 'yearly' },
+  { path: '/about', priority: '0.5', changefreq: 'yearly' },
+  { path: '/contact', priority: '0.5', changefreq: 'yearly' },
+  { path: '/disclaimer', priority: '0.5', changefreq: 'yearly' },
 ];
 
 try {
-  console.log('Generating dynamic sitemap...');
+  console.log('Generating SEO-Optimized sitemap...');
   const content = fs.readFileSync(blogPostsPath, 'utf8');
 
-  // Extract slugs using regex: slug: '...' or slug: "..."
-  const slugMatches = content.match(/slug:\s*['"]([^'"]+)['"]/g) || [];
-  const slugs = slugMatches.map(m => m.match(/['"]([^'"]+)['"]/)[1]);
+  // Split content by ID to isolate each blog post object
+  const blocks = content.split(/id:\s*['"]/);
+  const posts = [];
 
-  let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
+  for (const block of blocks) {
+    const slugMatch = block.match(/slug:\s*['"]([^'"]+)['"]/);
+    if (!slugMatch) continue;
+    
+    const slug = slugMatch[1];
+    const pubMatch = block.match(/publishDate:\s*['"]([^'"]+)['"]/);
+    const upMatch = block.match(/updatedDate:\s*['"]([^'"]+)['"]/);
+    
+    const dateStr = (upMatch ? upMatch[1] : null) || (pubMatch ? pubMatch[1] : null);
+    
+    let lastmod = new Date().toISOString().split('T')[0];
+    if (dateStr) {
+      try {
+        lastmod = new Date(dateStr).toISOString().split('T')[0];
+      } catch (e) {
+        // Fallback to today if parsing fails
+      }
+    }
+    
+    posts.push({ slug, lastmod });
+  }
 
-  // Add static routes
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
+
+  const today = new Date().toISOString().split('T')[0];
+
   staticRoutes.forEach(route => {
     xml += `
   <url>
     <loc>${domain}${route.path}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>${route.changefreq}</changefreq>
     <priority>${route.priority}</priority>
   </url>`;
   });
 
-  // Add dynamic blog posts
-  slugs.forEach(slug => {
+  posts.forEach(post => {
     xml += `
   <url>
-    <loc>${domain}/blog/${slug}</loc>
+    <loc>${domain}/blog/${post.slug}</loc>
+    <lastmod>${post.lastmod}</lastmod>
+    <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>`;
   });
 
-  xml += `
-</urlset>
-`;
+  xml += `\n</urlset>\n`;
 
   fs.writeFileSync(sitemapPath, xml);
-  console.log(`✅ Success: Generated sitemap.xml with ${slugs.length} dynamic blog routes.`);
+  console.log(`✅ Success: Generated sitemap.xml with ${posts.length} dynamic blog routes.`);
 
-  // Also update robots.txt to point to the correct sitemap location
   const robotsPath = path.join(rootDir, 'public', 'robots.txt');
   if (fs.existsSync(robotsPath)) {
     let robotsContent = fs.readFileSync(robotsPath, 'utf8');
