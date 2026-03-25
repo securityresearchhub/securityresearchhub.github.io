@@ -1,55 +1,83 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://securityresearchhub.github.io/</loc>
-    <changefreq>weekly</changefreq>
+    <loc>https://securityresearchhub.github.io</loc>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://securityresearchhub.github.io/blog</loc>
-    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://securityresearchhub.github.io/research</loc>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://securityresearchhub.github.io/research-hub</loc>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://securityresearchhub.github.io/database</loc>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://securityresearchhub.github.io/vulnerabilities</loc>
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://securityresearchhub.github.io/about</loc>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://securityresearchhub.github.io/contact</loc>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://securityresearchhub.github.io/privacy</loc>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://securityresearchhub.github.io/terms</loc>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://securityresearchhub.github.io/disclaimer</loc>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://securityresearchhub.github.io/legal-use</loc>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://securityresearchhub.github.io/copyright</loc>
+    <priority>0.5</priority>
+  </url>
+  <url>
     <loc>https://securityresearchhub.github.io/blog/broken-access-control-owasp-a01-analysis</loc>
-    <lastmod>2026-03-04</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://securityresearchhub.github.io/blog/idor-security-analysis</loc>
-    <lastmod>2026-03-04</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://securityresearchhub.github.io/blog/horizontal-privilege-escalation-owasp-a01</loc>
-    <lastmod>2026-03-06</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://securityresearchhub.github.io/blog/vertical-privilege-escalation-security-analysis</loc>
-    <lastmod>2026-03-06</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://securityresearchhub.github.io/blog/forced-browsing-owasp-a01-analysis</loc>
-    <lastmod>2026-03-10</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://securityresearchhub.github.io/blog/missing-function-level-access-control-owasp-a01</loc>
-    <lastmod>2026-03-13</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://securityresearchhub.github.io/blog/bola-owasp-api1</loc>
-    <lastmod>2026-03-17</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.8</priority>
   </url>
 </urlset>
