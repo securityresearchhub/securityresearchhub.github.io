@@ -13,9 +13,17 @@ const domain = process.env.VITE_SITE_URL || 'https://securityresearchhub.github.
 const staticRoutes = [
   { path: '', priority: '1.0' },
   { path: '/blog', priority: '0.9' },
+  { path: '/research', priority: '0.9' },
+  { path: '/research-hub', priority: '0.9' },
+  { path: '/database', priority: '0.85' },
+  { path: '/vulnerabilities', priority: '0.8' },
   { path: '/about', priority: '0.7' },
-  { path: '/privacy', priority: '0.5' },
   { path: '/contact', priority: '0.7' },
+  { path: '/privacy', priority: '0.5' },
+  { path: '/terms', priority: '0.5' },
+  { path: '/disclaimer', priority: '0.5' },
+  { path: '/legal-use', priority: '0.5' },
+  { path: '/copyright', priority: '0.5' },
 ];
 
 try {
